@@ -1,5 +1,7 @@
 # Ghidorah
 
+![Ghidorah icon](icons/ghidorah.svg)
+
 Status: beta.
 
 Ghidorah is a purpose-built Kubernetes telemetry surface for watching workloads, services, ingress routes, and node health in one dense tactical view. It runs as a small Go backend plus a Svelte frontend, and it is designed to stay opinionated instead of becoming a blank observability canvas.
@@ -62,6 +64,7 @@ npm run build
 - `internal/events`: shared event types and event bus.
 - `frontend`: Svelte UI.
 - `assets`: screenshots used in this README.
+- `icons`: project icon artwork.
 
 ## Notes
 
