@@ -93,15 +93,7 @@
 	let lastEvent = 'NO SIGNAL';
 	let inspectedPod = 'HOVER TARGET :: NONE';
 	let source: EventSource | undefined;
-	let mouseX = 0;
-	let mouseY = 0;
 	let mouseYPx = 0;
-	let warpVelocity = 0;
-	let isMoving = false;
-	let lastMouseX = 0;
-	let lastMouseY = 0;
-	let lastMouseAt = 0;
-	let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$: podList = Array.from($podStore.values()).sort(comparePods);
 	$: groups = groupPods(podList);
@@ -125,9 +117,6 @@
 
 	onMount(() => {
 		mouseYPx = window.innerHeight / 2;
-		lastMouseX = window.innerWidth / 2;
-		lastMouseY = mouseYPx;
-		lastMouseAt = performance.now();
 
 		source = new EventSource(streamURL);
 
@@ -151,9 +140,6 @@
 
 	onDestroy(() => {
 		source?.close();
-		if (settleTimer) {
-			clearTimeout(settleTimer);
-		}
 	});
 
 	function applyClusterEvent(event: ClusterEvent) {
@@ -445,44 +431,11 @@
 	}
 
 	function handleMouseMove(event: MouseEvent) {
-		const width = window.innerWidth || 1;
-		const height = window.innerHeight || 1;
-		const now = performance.now();
-		const elapsed = Math.max(now - lastMouseAt, 16);
-		const dx = event.clientX - lastMouseX;
-		const dy = event.clientY - lastMouseY;
-
-		mouseX = event.clientX / width - 0.5;
-		mouseY = event.clientY / height - 0.5;
 		mouseYPx = event.clientY;
-		warpVelocity = Math.min(1, Math.hypot(dx, dy) / elapsed / 1.5);
-		isMoving = true;
-		lastMouseX = event.clientX;
-		lastMouseY = event.clientY;
-		lastMouseAt = now;
-
-		if (settleTimer) {
-			clearTimeout(settleTimer);
-		}
-
-		settleTimer = setTimeout(() => {
-			isMoving = false;
-			warpVelocity = 0;
-		}, 180);
 	}
 
 	$: artStyle = [
-		`--mouse-x: ${mouseX.toFixed(4)}`,
-		`--mouse-y: ${mouseYPx.toFixed(2)}px`,
-		`--red-x: ${(mouseX * 12 * warpVelocity).toFixed(2)}px`,
-		`--red-y: ${(mouseY * 7 * warpVelocity).toFixed(2)}px`,
-		`--blue-x: ${(mouseX * -14 * warpVelocity).toFixed(2)}px`,
-		`--blue-y: ${(mouseY * -8 * warpVelocity).toFixed(2)}px`,
-		`--warp-x: ${(mouseX * 9 * warpVelocity).toFixed(2)}px`,
-		`--warp-y: ${(mouseY * 7 * warpVelocity).toFixed(2)}px`,
-		`--warp-tilt: ${(mouseX * 0.55 * warpVelocity).toFixed(3)}deg`,
-		`--warp-scale: ${(1.035 + warpVelocity * 0.012).toFixed(4)}`,
-		`--warp-alpha: ${(0.32 + warpVelocity * 0.2).toFixed(3)}`
+		`--mouse-y: ${mouseYPx.toFixed(2)}px`
 	].join('; ');
 </script>
 
@@ -627,20 +580,22 @@
 	class="relative isolate h-screen w-screen overflow-hidden bg-[#f4f4f0]"
 	style={artStyle}
 >
-	<svg class="absolute h-0 w-0" aria-hidden="true" focusable="false">
-		<filter id="mural-warp-filter">
-			<feTurbulence type="fractalNoise" baseFrequency="0.012 0.045" numOctaves="2" seed="7" result="noise" />
+	<svg class="hidden" aria-hidden="true" focusable="false">
+		<filter id="heat-warp">
+			<feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" result="noise">
+				<animate attributeName="baseFrequency" values="0.045;0.055;0.05" dur="1.2s" repeatCount="indefinite" />
+			</feTurbulence>
 			<feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
 		</filter>
 	</svg>
 
-	<section class={`art-layer pointer-events-none fixed inset-0 ${isMoving ? 'is-moving' : ''}`} aria-hidden="true">
-		<div class="mural mural-base fixed inset-0 -z-20 bg-cover bg-center opacity-40 mix-blend-multiply"></div>
+	<div class="ghidorah-art pointer-events-none absolute inset-0 -z-20 opacity-30 mix-blend-multiply" aria-hidden="true">
+		<div class="mural mural-base absolute inset-0 bg-cover bg-center opacity-100"></div>
 		<div
-			class="mural mural-warp fixed inset-0 -z-10 bg-cover bg-center mix-blend-multiply"
+			class="mural mural-warp absolute inset-0 bg-cover bg-center opacity-100"
 			style="clip-path: inset(calc(var(--mouse-y) - 60px) 0 calc(100vh - var(--mouse-y) - 60px) 0);"
 		></div>
-	</section>
+	</div>
 
 	<section class="operational-plane absolute inset-0 z-10 grid grid-cols-1 overflow-y-auto font-mono text-[11px] leading-none text-zinc-900 xl:grid-cols-3">
 			<section class="relative z-10 border-r border-red-900/40 bg-white/10 backdrop-blur-[2px]">
@@ -705,19 +660,10 @@
 	.mural {
 		background-image: url('/assets/mural.jpg');
 		background-attachment: fixed;
-		transition:
-			transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
-			filter 520ms cubic-bezier(0.22, 1, 0.36, 1);
-		will-change: transform, filter;
-	}
-
-	.mural-base {
-		position: fixed;
-		filter: grayscale(0.28) sepia(0.14) saturate(0.62) hue-rotate(154deg) contrast(0.9) brightness(1.22);
 		transform: scale(1.04);
 	}
 
-	.mural-base::after {
+	.ghidorah-art::after {
 		position: absolute;
 		inset: 0;
 		content: '';
@@ -735,27 +681,8 @@
 	}
 
 	.mural-warp {
-		opacity: var(--warp-alpha);
-		filter: url('#mural-warp-filter') grayscale(0.18) sepia(0.1) saturate(0.7) hue-rotate(156deg) contrast(1.05) brightness(1.06);
-		transform: translate3d(var(--warp-x), var(--warp-y), 0) rotate(var(--warp-tilt)) scale(var(--warp-scale));
-		will-change: clip-path, transform, filter;
-	}
-
-	.art-layer.is-moving .mural-warp {
-		animation: analog-warp 980ms ease-in-out infinite;
-	}
-
-	@keyframes analog-warp {
-		0%,
-		100% {
-			transform: translate3d(var(--warp-x), var(--warp-y), 0) rotate(var(--warp-tilt)) skewX(0deg) scale(var(--warp-scale));
-		}
-		35% {
-			transform: translate3d(calc(var(--warp-x) * -0.72), calc(var(--warp-y) * 0.6), 0) rotate(calc(var(--warp-tilt) * -0.8)) skewX(-0.22deg) scale(calc(var(--warp-scale) + 0.002));
-		}
-		68% {
-			transform: translate3d(calc(var(--warp-x) * 0.88), calc(var(--warp-y) * -0.7), 0) rotate(calc(var(--warp-tilt) * 0.65)) skewX(0.18deg) scale(calc(var(--warp-scale) + 0.001));
-		}
+		filter: url('#heat-warp');
+		will-change: clip-path, filter;
 	}
 
 	.artifact-panel {
