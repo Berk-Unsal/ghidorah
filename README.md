@@ -1,6 +1,6 @@
 # Ghidorah
 
-![Ghidorah icon](icons/ghidorah.svg)
+<img src="icons/ghidorah.svg" alt="Ghidorah icon" width="96" />
 
 Status: beta.
 
