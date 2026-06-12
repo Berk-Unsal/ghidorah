@@ -1,0 +1,12 @@
+services:
+  ghidorah:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8042:8042"
+    environment:
+      KUBECONFIG: /root/.kube/config
+      GHIDORAH_KUBE_HOST: host.docker.internal
+    volumes:
+      - ~/.kube:/root/.kube:ro

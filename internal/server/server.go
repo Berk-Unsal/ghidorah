@@ -24,6 +24,7 @@ func Run(ctx context.Context, addr string, bus <-chan events.ClusterEvent) error
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/stream", stream.serveHTTP)
+	mux.Handle("GET /", http.FileServer(http.FS(staticFS)))
 
 	httpServer := &http.Server{
 		Addr:              addr,

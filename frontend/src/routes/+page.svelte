@@ -79,7 +79,7 @@
 		updatedAt: number;
 	};
 
-	const streamURL = 'http://localhost:8042/api/stream';
+	const streamURL = '/api/stream';
 	const podStore = writable<Map<string, PodState>>(new Map());
 	const serviceStore = writable<Map<string, ServiceState>>(new Map());
 	const ingressStore = writable<Map<string, IngressState>>(new Map());

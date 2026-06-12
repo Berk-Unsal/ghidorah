@@ -4,17 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
+	"sync"
 	"time"
 
 	"ghidorah/internal/events"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 const nodeMetricsInterval = 10 * time.Second
+
+var nodeMetricsFallbackLogOnce sync.Once
 
 func RunNodeMetricsPoller(ctx context.Context, clientset kubernetes.Interface, metricsClient metricsclient.Interface) error {
 	ticker := time.NewTicker(nodeMetricsInterval)
@@ -45,14 +50,20 @@ func publishNodeMetrics(ctx context.Context, clientset kubernetes.Interface, met
 		return fmt.Errorf("list nodes: %w", err)
 	}
 
+	metricsByNode := make(map[string]corev1.ResourceList, len(nodes.Items))
 	nodeMetrics, err := metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("list node metrics: %w", err)
-	}
+		if !isExpectedNodeMetricsFallback(err) {
+			return fmt.Errorf("list node metrics: %w", err)
+		}
 
-	metricsByNode := make(map[string]corev1.ResourceList, len(nodeMetrics.Items))
-	for _, item := range nodeMetrics.Items {
-		metricsByNode[item.Name] = item.Usage
+		nodeMetricsFallbackLogOnce.Do(func() {
+			log.Printf("node metrics API unavailable; continuing with readiness/capacity fallback: %v", err)
+		})
+	} else {
+		for _, item := range nodeMetrics.Items {
+			metricsByNode[item.Name] = item.Usage
+		}
 	}
 
 	for _, node := range nodes.Items {
@@ -119,4 +130,12 @@ func publishMetricsEvent(ctx context.Context, event events.ClusterEvent) {
 			event.Name,
 		)
 	}
+}
+
+func isExpectedNodeMetricsFallback(err error) bool {
+	if apierrors.IsServiceUnavailable(err) || apierrors.IsServerTimeout(err) {
+		return true
+	}
+
+	return strings.Contains(err.Error(), "the server is currently unable to handle the request")
 }
